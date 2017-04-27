@@ -123,6 +123,10 @@ public class InvoiceResource {
 
     @GET("/invoices")
     public Iterable<Invoice> findInvoices(Optional<String> startDate, Optional<String> endDate, Optional<String> statuses) {
+        return findInvoices(startDate, endDate, statuses, Optional.<String>absent());
+    }
+
+    private Iterable<Invoice> findInvoices(Optional<String> startDate, Optional<String> endDate, Optional<String> statuses, Optional<String> maxDueDate) {
         User user = AppModule.currentUser();
 
         QueryBuilder builder = QueryBuilder.start();
@@ -154,6 +158,11 @@ public class InvoiceResource {
         if (statuses.isPresent()) {
             String[] statusList = statuses.get().split(", ");
             builder.and("status").in(statusList);
+        }
+
+        if (maxDueDate.isPresent()) {
+            Date endDueDate = LocalDate.parse(maxDueDate.get()).toDateTime(LocalTime.MIDNIGHT).toDate();
+            builder.and("dueDate").lessThan(endDueDate);
         }
 
         return invoices.get().find(builder.get().toString()).as(Invoice.class);
@@ -288,5 +297,25 @@ public class InvoiceResource {
         invoice.addAttachments(blobs);
 
         return updateInvoice(invoiceId, invoice);
+    }
+
+    @GET("/invoices/status/to_prepare")
+    public Iterable<Invoice> findInvoicesToPrepare() {
+        return findInvoices(Optional.<String>absent(), Optional.of(LocalDate.now().plusDays(15).toString()), Optional.of(DRAFT.name()));
+    }
+
+    @GET("/invoices/status/to_validate")
+    public Iterable<Invoice> findInvoicesToValidate() {
+        return findInvoices(Optional.<String>absent(), Optional.<String>absent(), Optional.of(WAITING_VALIDATION.name()));
+    }
+
+    @GET("/invoices/status/to_send")
+    public Iterable<Invoice> findInvoicesToSend() {
+        return findInvoices(Optional.<String>absent(), Optional.of(LocalDate.now().minusDays(1).toString()), Optional.of(VALIDATED.name()));
+    }
+
+    @GET("/invoices/status/to_remind")
+    public Iterable<Invoice> findInvoicesToRemind() {
+        return findInvoices(Optional.<String>absent(), Optional.<String>absent(), Optional.of(SENT.name()), Optional.of(LocalDate.now().toString()));
     }
 }
